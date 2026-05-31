@@ -26,5 +26,5 @@ Thumbs.db
 .idea/
 .vscode/
 
-#docs
-.docs/
+# Documentation drafts
+docs/
