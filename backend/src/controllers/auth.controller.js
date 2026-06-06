@@ -53,3 +53,36 @@ export function logout(_req, res) {
   sendSuccess(res, null, "Logged out");
 }
 
+export function getMe(req, res) {
+  sendSuccess(res, {
+    user: req.user,
+    menu: buildMenuForRole(req.user.role),
+  });
+}
+
+function buildMenuForRole(role) {
+  const common = [{ key: "dashboard", label: "Dashboard", path: "/dashboard" }];
+
+  const menus = {
+    student: [
+      ...common,
+      { key: "transcript", label: "Transcript", path: "/transcript" },
+    ],
+    lecturer: [
+      ...common,
+      { key: "grade-input", label: "Grade Input", path: "/grades/input" },
+    ],
+    academic_staff: [
+      ...common,
+      { key: "academic-processing", label: "Academic Processing", path: "/academic" },
+      { key: "retakes", label: "Retakes", path: "/retakes" },
+    ],
+    admin: [
+      ...common,
+      { key: "users", label: "Users", path: "/admin/users" },
+      { key: "audit-logs", label: "Audit Logs", path: "/admin/audit-logs" },
+    ],
+  };
+
+  return menus[role] || common;
+}

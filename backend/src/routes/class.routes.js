@@ -1,9 +1,29 @@
 import { Router } from "express";
-import { getClassStudents, lockGrades } from "../controllers/class.controller.js";
+import { getClassStudents, listClasses, lockGrades } from "../controllers/class.controller.js";
 import { authenticate, authorize } from "../middleware/auth.middleware.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const router = Router();
+
+/**
+ * @openapi
+ * /classes:
+ *   get:
+ *     tags:
+ *       - Classes
+ *     summary: List class sections for selector screens
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: semesterId
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Class section list
+ */
+router.get("/", authenticate, authorize("lecturer", "academic_staff", "admin"), asyncHandler(listClasses));
 
 /**
  * @openapi

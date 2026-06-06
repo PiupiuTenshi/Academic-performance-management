@@ -1,4 +1,4 @@
-import { pool, query } from "../config/database.js";
+import { query } from "../config/database.js";
 import { writeAuditLog } from "../services/audit-log.service.js";
 import { ApiError } from "../utils/api-error.js";
 import { sendSuccess } from "../utils/http-response.js";
@@ -74,6 +74,51 @@ export async function getClassStudents(req, res) {
   });
 }
 
+export async function listClasses(req, res) {
+  const semesterId = req.query.semesterId ? Number(req.query.semesterId) : null;
+  const params = [];
+  const conditions = [];
+
+  if (semesterId) {
+    conditions.push("cs.semester_id = ?");
+    params.push(semesterId);
+  }
+
+  if (req.user.role === "lecturer") {
+    conditions.push("l.user_id = ?");
+    params.push(req.user.id);
+  }
+
+  const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const rows = await query(
+    `SELECT
+       cs.id,
+       cs.section_code AS sectionCode,
+       cs.is_grade_locked AS isGradeLocked,
+       c.id AS courseId,
+       c.course_code AS courseCode,
+       c.name AS courseName,
+       s.id AS semesterId,
+       s.name AS semesterName,
+       s.academic_year AS academicYear,
+       l.id AS lecturerId,
+       l.full_name AS lecturerName,
+       COUNT(e.id) AS studentCount
+     FROM class_sections cs
+     JOIN courses c ON c.id = cs.course_id
+     JOIN semesters s ON s.id = cs.semester_id
+     JOIN lecturers l ON l.id = cs.lecturer_id
+     LEFT JOIN enrollments e ON e.class_section_id = cs.id
+     ${whereClause}
+     GROUP BY cs.id, c.id, s.id, l.id
+     ORDER BY s.id DESC, c.course_code, cs.section_code`,
+    params,
+  );
+
+  sendSuccess(res, rows);
+}
+
 export async function lockGrades(req, res) {
   const classSectionId = Number(req.params.id);
 
@@ -117,4 +162,3 @@ export async function lockGrades(req, res) {
     isGradeLocked: true,
   });
 }
-

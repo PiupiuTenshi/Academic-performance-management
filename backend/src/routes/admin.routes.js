@@ -1,9 +1,42 @@
 import { Router } from "express";
-import { createUser, getAuditLogs, updateUserStatus } from "../controllers/admin.controller.js";
+import { createUser, getAuditLogs, listUsers, updateUserStatus } from "../controllers/admin.controller.js";
 import { authenticate, authorize } from "../middleware/auth.middleware.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const router = Router();
+
+/**
+ * @openapi
+ * /admin/users:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: List users for admin screen
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [student, lecturer, academic_staff, admin]
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User list
+ */
+router.get("/users", authenticate, authorize("admin"), asyncHandler(listUsers));
 
 /**
  * @openapi

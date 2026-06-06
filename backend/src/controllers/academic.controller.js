@@ -111,6 +111,21 @@ export async function calculateFinalScores(req, res) {
   });
 }
 
+export async function listSemesters(_req, res) {
+  const rows = await query(
+    `SELECT
+       id,
+       name,
+       academic_year AS academicYear,
+       starts_on AS startsOn,
+       ends_on AS endsOn
+     FROM semesters
+     ORDER BY academic_year DESC, id DESC`,
+  );
+
+  sendSuccess(res, rows);
+}
+
 export async function classifySemester(req, res) {
   const semesterId = Number(req.body.semesterId);
 
@@ -182,4 +197,3 @@ export async function classifySemester(req, res) {
     classifiedCount,
   });
 }
-
