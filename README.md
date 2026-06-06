@@ -24,11 +24,25 @@ docs/       Project documentation
 ```bash
 cd backend
 npm install
-cp .env.example .env
+npm run db:schema
+npm run db:seed
 npm run dev
 ```
 
 API health check: `GET http://localhost:5000/api/v1/health`
+
+Swagger UI:
+
+```text
+http://localhost:5000/api-docs
+```
+
+Backend release check:
+
+```bash
+cd backend
+npm run release:check
+```
 
 ### Frontend
 
@@ -60,3 +74,38 @@ mysql -u root -p academic_result_management < database/seed.sql
 - Commit format: `type: short description`
 - Common types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`
 
+## Demo Accounts
+
+All seed accounts use password:
+
+```text
+123456
+```
+
+| Username | Role |
+| --- | --- |
+| `admin` | Admin |
+| `academic01` | Academic Staff |
+| `lecturer01` | Lecturer |
+| `student01` | Student |
+
+## Deployment
+
+Backend can be deployed as a Node service from `backend/`.
+
+```bash
+cd backend
+npm ci
+npm start
+```
+
+Required production variables:
+
+```env
+NODE_ENV=production
+DATABASE_URL=mysql://user:password@host:3306/database
+JWT_SECRET=<long-random-secret>
+CORS_ORIGIN=https://<frontend-domain>
+```
+
+Render blueprint is available in `render.yaml`, and a backend Dockerfile is available in `backend/Dockerfile`.
