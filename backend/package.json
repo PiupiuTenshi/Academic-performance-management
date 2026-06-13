@@ -10,6 +10,8 @@
     "db:check": "node scripts/check-database.js",
     "db:schema": "node scripts/run-sql-file.js database/schema.sql",
     "db:seed": "node scripts/run-sql-file.js database/seed.sql",
+    "db:demo:build": "node scripts/generate-demo-data.js",
+    "db:demo": "node scripts/run-sql-file.js database/demo-data.sql",
     "integration:smoke": "node scripts/integration-smoke.js",
     "release:check": "node scripts/release-check.js",
     "test:api": "node scripts/api-regression-test.js",

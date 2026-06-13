@@ -26,6 +26,8 @@ cd backend
 npm install
 npm run db:schema
 npm run db:seed
+npm run db:demo:build # optional: rebuild demo SQL from CSV files
+npm run db:demo # optional: load large demo dataset
 npm run dev
 ```
 
@@ -64,7 +66,14 @@ CREATE DATABASE academic_result_management
 ```bash
 mysql -u root -p academic_result_management < database/schema.sql
 mysql -u root -p academic_result_management < database/seed.sql
+mysql -u root -p academic_result_management < database/demo-data.sql
 ```
+
+Optional large demo data is available in `database/demo-data.sql`. It is generated from the CSV files
+in `database/source-csv/` and adds 164 students, 14 courses across 2 semesters, 42 class sections,
+enrollments, semester 1 grades, retake/repeat records, and academic records. Semester 2 grades are
+left blank for lecturer input. Rebuild it with `npm run db:demo:build`, then load it with
+`npm run db:demo` from `backend/`.
 
 ## Git Workflow
 
@@ -87,7 +96,7 @@ All seed accounts use password:
 | `admin` | Admin |
 | `academic01` | Academic Staff |
 | `lecturer01` | Lecturer |
-| `student01` | Student |
+| `N23DCCN001` | Student |
 
 ## Deployment
 
