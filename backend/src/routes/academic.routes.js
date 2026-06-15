@@ -1,9 +1,29 @@
 import { Router } from "express";
-import { calculateFinalScores, classifySemester } from "../controllers/academic.controller.js";
+import { calculateFinalScores, classifySemester, listSemesters } from "../controllers/academic.controller.js";
 import { authenticate, authorize } from "../middleware/auth.middleware.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const router = Router();
+
+/**
+ * @openapi
+ * /academic/semesters:
+ *   get:
+ *     tags:
+ *       - Academic
+ *     summary: List semesters for frontend filters
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Semester list
+ */
+router.get(
+  "/semesters",
+  authenticate,
+  authorize("student", "lecturer", "academic_staff", "admin"),
+  asyncHandler(listSemesters),
+);
 
 /**
  * @openapi

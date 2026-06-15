@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, logout } from "../controllers/auth.controller.js";
+import { getMe, login, logout } from "../controllers/auth.controller.js";
 import { authenticate } from "../middleware/auth.middleware.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -33,6 +33,21 @@ const router = Router();
  *         description: Invalid credentials
  */
 router.post("/login", asyncHandler(login));
+
+/**
+ * @openapi
+ * /auth/me:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Get current authenticated user and frontend menu
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user
+ */
+router.get("/me", authenticate, asyncHandler(getMe));
 
 /**
  * @openapi

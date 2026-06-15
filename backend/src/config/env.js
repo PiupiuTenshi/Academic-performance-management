@@ -11,7 +11,10 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 export const env = {
   port: Number(process.env.PORT || 5000),
   nodeEnv: process.env.NODE_ENV || "development",
-  corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
+  corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   jwtSecret: process.env.JWT_SECRET || "change_me_in_local_env",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1d",
   databaseUrl: process.env.DATABASE_URL,

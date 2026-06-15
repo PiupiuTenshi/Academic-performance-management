@@ -6,6 +6,50 @@ import { sendSuccess } from "../utils/http-response.js";
 
 const validRoles = ["student", "lecturer", "academic_staff", "admin"];
 
+export async function listUsers(req, res) {
+  const page = Math.max(Number(req.query.page || 1), 1);
+  const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
+  const offset = (page - 1) * limit;
+  const role = req.query.role || null;
+  const keyword = req.query.keyword ? `%${req.query.keyword}%` : null;
+
+  if (role && !validRoles.includes(role)) {
+    throw new ApiError(422, "VALIDATION_ERROR", "Invalid role");
+  }
+
+  const rows = await query(
+    `SELECT
+       u.id,
+       u.username,
+       u.role,
+       u.is_active AS isActive,
+       COALESCE(s.full_name, l.full_name) AS fullName,
+       COALESCE(s.email, l.email) AS email,
+       s.student_code AS studentCode,
+       l.lecturer_code AS lecturerCode,
+       u.created_at AS createdAt
+     FROM users u
+     LEFT JOIN students s ON s.user_id = u.id
+     LEFT JOIN lecturers l ON l.user_id = u.id
+     WHERE (? IS NULL OR u.role = ?)
+       AND (
+         ? IS NULL OR
+         u.username LIKE ? OR
+         s.full_name LIKE ? OR
+         l.full_name LIKE ?
+       )
+     ORDER BY u.id DESC
+     LIMIT ${limit} OFFSET ${offset}`,
+    [role, role, keyword, keyword, keyword, keyword],
+  );
+
+  sendSuccess(res, {
+    page,
+    limit,
+    items: rows,
+  });
+}
+
 export async function getAuditLogs(req, res) {
   const page = Math.max(Number(req.query.page || 1), 1);
   const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
@@ -28,7 +72,7 @@ export async function getAuditLogs(req, res) {
        AND (? IS NULL OR al.action = ?)
        AND (? IS NULL OR al.entity_type = ?)
      ORDER BY al.created_at DESC
-     LIMIT ? OFFSET ?`,
+     LIMIT ${limit} OFFSET ${offset}`,
     [
       req.query.actorId || null,
       req.query.actorId || null,
@@ -36,8 +80,6 @@ export async function getAuditLogs(req, res) {
       req.query.action || null,
       req.query.entityType || null,
       req.query.entityType || null,
-      limit,
-      offset,
     ],
   );
 
@@ -152,4 +194,3 @@ export async function updateUserStatus(req, res) {
     isActive,
   });
 }
-
