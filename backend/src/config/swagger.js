@@ -10,8 +10,8 @@ export const swaggerSpec = swaggerJSDoc({
     },
     servers: [
       {
-        url: "http://localhost:5000/api/v1",
-        description: "Local API server",
+        url: "/api/v1",
+        description: "Current API server",
       },
     ],
     components: {
@@ -26,4 +26,3 @@ export const swaggerSpec = swaggerJSDoc({
   },
   apis: ["./src/routes/*.js"],
 });
-
