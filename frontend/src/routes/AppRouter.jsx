@@ -46,7 +46,9 @@ export default function AppRouter() {
         {/* Student: xem bảng điểm */}
         <Route path="/transcript" element={
           <ProtectedRoute roles={["student", "academic_staff", "admin"]}>
-            <StudentTranscriptPage />
+            <AppLayout title="Bảng điểm">
+              <StudentTranscriptPage />
+            </AppLayout>
           </ProtectedRoute>
         } />
 
