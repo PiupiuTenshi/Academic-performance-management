@@ -12,6 +12,8 @@
     "db:seed": "node scripts/run-sql-file.js database/seed.sql",
     "db:demo:build": "node scripts/generate-demo-data.js",
     "db:demo": "node scripts/run-sql-file.js database/demo-data.sql",
+    "db:grades:randomize": "node scripts/randomize-passed-grades.js",
+    "db:grades:sample": "node scripts/check-grade-sample.js",
     "integration:smoke": "node scripts/integration-smoke.js",
     "release:check": "node scripts/release-check.js",
     "test:api": "node scripts/api-regression-test.js",

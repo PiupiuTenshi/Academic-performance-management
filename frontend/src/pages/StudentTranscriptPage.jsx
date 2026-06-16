@@ -225,7 +225,7 @@ export default function StudentTranscriptPage() {
         <div className="transcript-header-actions">
           {user && user.role !== "student" && (
             <button className="transcript-btn-back" onClick={() => navigate("/dashboard")}>
-              ← Quay lại Dashboard
+              ← Quay lại tổng quan
             </button>
           )}
           <button className="transcript-btn-logout" onClick={handleLogout}>
@@ -393,7 +393,7 @@ export default function StudentTranscriptPage() {
         )}
       </div>
 
-      {/* Detailed Scores Modal */}
+      {/* Modal chi tiết điểm */}
       {selectedItem && (
         <Modal
           isOpen={!!selectedItem}
