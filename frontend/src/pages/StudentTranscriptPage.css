@@ -429,3 +429,8 @@
     background: transparent !important;
   }
 }
+
+/* Hide redundant transcript-header when within app-layout wrapper */
+.app-layout .transcript-header {
+  display: none;
+}

@@ -47,7 +47,7 @@ export default function DashboardPage() {
 
   return (
     <div className="page-container">
-      <h1 className="page-title">Dashboard</h1>
+      <h1 className="page-title">Tổng quan</h1>
       <p className="page-subtitle">Xin chào, <strong>{user.username}</strong>! Chào mừng bạn trở lại.</p>
 
       {loadError && (
@@ -114,7 +114,7 @@ export default function DashboardPage() {
                         <td>
                           <button
                             className="btn btn-primary btn-sm"
-                            onClick={() => navigate("/grades/input")}
+                            onClick={() => navigate(`/grades/input?semesterId=${c.semesterId}&classId=${c.id}`)}
                           >
                             Nhập điểm
                           </button>
@@ -174,10 +174,13 @@ export default function DashboardPage() {
             <div className="card-title">⚙️ Chức năng Admin</div>
             <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
               <button className="btn btn-primary" onClick={() => navigate("/admin/users")}>
-                Quản lý Users
+                Quản lý tài khoản
               </button>
               <button className="btn btn-outline" onClick={() => navigate("/admin/audit-logs")}>
-                Xem Audit Logs
+                Xem nhật ký
+              </button>
+              <button className="btn btn-outline" onClick={() => navigate("/admin/system")}>
+                Trạng thái hệ thống
               </button>
             </div>
           </div>

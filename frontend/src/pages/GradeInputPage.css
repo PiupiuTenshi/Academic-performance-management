@@ -286,3 +286,8 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* Hide redundant grade-input-header when within app-layout wrapper */
+.app-layout .grade-input-header {
+  display: none;
+}

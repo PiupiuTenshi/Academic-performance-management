@@ -41,6 +41,11 @@ export function classifySemester(semesterId) {
   return api.post("/academic/classify", { semesterId }).then((r) => r.data.data);
 }
 
+// GET /academic/records
+export function getAcademicRecords(params = {}) {
+  return api.get("/academic/records", { params }).then((r) => r.data.data);
+}
+
 // GET /retakes
 export function getRetakes(params = {}) {
   return api.get("/retakes", { params }).then((r) => r.data.data);

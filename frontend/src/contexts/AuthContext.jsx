@@ -1,23 +1,46 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useEffect, useState } from "react";
+import { getMe } from "../services/auth.api";
 
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [initializing, setInitializing] = useState(true);
 
-  // Khôi phục session từ localStorage khi tải trang
   useEffect(() => {
     const savedToken = localStorage.getItem("token");
     const savedUser = localStorage.getItem("user");
-    if (savedToken && savedUser) {
+
+    async function restoreSession() {
+      if (!savedToken) {
+        setInitializing(false);
+        return;
+      }
+
       setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+
+      try {
+        const data = await getMe();
+        setUser(data.user);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      } catch (_) {
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      } finally {
+        setInitializing(false);
+      }
     }
+
+    restoreSession();
   }, []);
 
   function login(data) {
-    // data = { accessToken, user: { id, username, role } }
     setToken(data.accessToken);
     setUser(data.user);
     localStorage.setItem("token", data.accessToken);
@@ -32,7 +55,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthContext.Provider value={{ user, token, initializing, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

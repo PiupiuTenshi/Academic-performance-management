@@ -11,6 +11,7 @@ import GradeInputPage from "../pages/GradeInputPage";
 import AcademicProcessingPage from "../pages/AcademicProcessingPage";
 import AdminUsersPage from "../pages/AdminUsersPage";
 import AuditLogPage from "../pages/AuditLogPage";
+import SystemStatusPage from "../pages/SystemStatusPage";
 
 // Layout bao gồm Sidebar + Header + nội dung
 function AppLayout({ children, title }) {
@@ -37,7 +38,7 @@ export default function AppRouter() {
         {/* Protected: tất cả role */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <AppLayout title="Dashboard">
+            <AppLayout title="Tổng quan">
               <DashboardPage />
             </AppLayout>
           </ProtectedRoute>
@@ -46,7 +47,9 @@ export default function AppRouter() {
         {/* Student: xem bảng điểm */}
         <Route path="/transcript" element={
           <ProtectedRoute roles={["student", "academic_staff", "admin"]}>
-            <StudentTranscriptPage />
+            <AppLayout title="Bảng điểm">
+              <StudentTranscriptPage />
+            </AppLayout>
           </ProtectedRoute>
         } />
 
@@ -59,7 +62,7 @@ export default function AppRouter() {
           </ProtectedRoute>
         } />
 
-        {/* Academic Staff: xử lý học vụ */}
+        {/* Giáo vụ: xử lý học vụ */}
         <Route path="/academic" element={
           <ProtectedRoute roles={["academic_staff"]}>
             <AppLayout title="Xử lý học vụ">
@@ -82,6 +85,15 @@ export default function AppRouter() {
           <ProtectedRoute roles={["admin"]}>
             <AppLayout title="Nhật ký hệ thống">
               <AuditLogPage />
+            </AppLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* Admin: trạng thái hệ thống */}
+        <Route path="/admin/system" element={
+          <ProtectedRoute roles={["admin"]}>
+            <AppLayout title="Trạng thái hệ thống">
+              <SystemStatusPage />
             </AppLayout>
           </ProtectedRoute>
         } />

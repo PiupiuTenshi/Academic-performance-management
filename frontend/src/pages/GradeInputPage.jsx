@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
   getSemesters, getClasses, getClassStudents,
@@ -13,6 +14,9 @@ import "./GradeInputPage.css";
 
 export default function GradeInputPage() {
   const { user, logout } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const presetSemesterId = searchParams.get("semesterId") || "";
+  const presetClassId = searchParams.get("classId") || "";
   
   const [semesters, setSemesters] = useState([]);
   const [semesterId, setSemesterId] = useState("");
@@ -20,6 +24,7 @@ export default function GradeInputPage() {
   const [selectedClass, setSelectedClass] = useState("");
   const [classData, setClassData] = useState(null); // { classSection, students }
   const [grades, setGrades] = useState({}); // { enrollmentId: { attendanceScore, ... } }
+  const [originalGrades, setOriginalGrades] = useState({});
   const [loadingClass, setLoadingClass] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locking, setLocking] = useState(false);
@@ -28,6 +33,19 @@ export default function GradeInputPage() {
   const [searchTerm, setSearchTerm] = useState("");
   
   const fileInputRef = useRef(null);
+
+  function getApiErrorMessage(error, fallback) {
+    return error.response?.data?.error?.message
+      || error.response?.data?.message
+      || error.message
+      || fallback;
+  }
+
+  useEffect(() => {
+    if (presetSemesterId) {
+      setSemesterId(presetSemesterId);
+    }
+  }, [presetSemesterId]);
 
   // Tải học kỳ
   useEffect(() => {
@@ -40,13 +58,18 @@ export default function GradeInputPage() {
   useEffect(() => {
     if (!semesterId) { setClasses([]); setSelectedClass(""); setClassData(null); return; }
     getClasses(semesterId)
-      .then(setClasses)
+      .then((data) => {
+        setClasses(data);
+        if (presetClassId && data.some((c) => String(c.id) === String(presetClassId))) {
+          setSelectedClass(presetClassId);
+        }
+      })
       .catch(() => setMessage({ type: "error", text: "Không thể tải danh sách lớp học phần." }));
-  }, [semesterId]);
+  }, [semesterId, presetClassId]);
 
   // Tải danh sách SV khi chọn lớp
   useEffect(() => {
-    if (!selectedClass) { setClassData(null); setGrades({}); setSearchTerm(""); return; }
+    if (!selectedClass) { setClassData(null); setGrades({}); setOriginalGrades({}); setSearchTerm(""); return; }
     setLoadingClass(true);
     getClassStudents(selectedClass)
       .then((data) => {
@@ -62,6 +85,7 @@ export default function GradeInputPage() {
           };
         });
         setGrades(initial);
+        setOriginalGrades(initial);
       })
       .catch((err) => setMessage({ type: "error", text: err.response?.data?.error?.message || "Không thể tải danh sách sinh viên." }))
       .finally(() => setLoadingClass(false));
@@ -72,6 +96,49 @@ export default function GradeInputPage() {
       ...prev,
       [enrollmentId]: { ...prev[enrollmentId], [field]: value },
     }));
+  }
+
+  function handleSemesterSelect(value) {
+    setSearchParams({});
+    setSemesterId(value);
+    setSelectedClass("");
+  }
+
+  function handleClassSelect(value) {
+    setSearchParams({});
+    setSelectedClass(value);
+  }
+
+  function handleBackToClassSelection() {
+    if (semesterId) {
+      setSearchParams({ semesterId });
+    } else {
+      setSearchParams({});
+    }
+    setSelectedClass("");
+  }
+
+  function normalizeScoreForCompare(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    return Number(value);
+  }
+
+  function isSameGrade(current = {}, original = {}) {
+    const fields = ["attendanceScore", "assignmentScore", "midtermScore", "finalScore"];
+    return fields.every((field) => {
+      const currentValue = normalizeScoreForCompare(current[field]);
+      const originalValue = normalizeScoreForCompare(original[field]);
+      if (currentValue === null || originalValue === null) {
+        return currentValue === originalValue;
+      }
+      return Math.abs(currentValue - originalValue) < 1e-9;
+    });
+  }
+
+  function getChangedGradeEntries() {
+    return Object.entries(grades).filter(([enrollmentId, grade]) => (
+      !isSameGrade(grade, originalGrades[enrollmentId])
+    ));
   }
 
   // Validate tất cả điểm trước khi lưu
@@ -93,7 +160,14 @@ export default function GradeInputPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const gradePayload = Object.entries(grades).map(([eid, g]) => ({
+      const changedEntries = getChangedGradeEntries();
+
+      if (changedEntries.length === 0) {
+        setMessage({ type: "success", text: "Không có thay đổi cần lưu." });
+        return;
+      }
+
+      const gradePayload = changedEntries.map(([eid, g]) => ({
         enrollmentId: Number(eid),
         attendanceScore: g.attendanceScore !== "" ? Number(g.attendanceScore) : null,
         assignmentScore: g.assignmentScore !== "" ? Number(g.assignmentScore) : null,
@@ -101,9 +175,24 @@ export default function GradeInputPage() {
         finalScore: g.finalScore !== "" ? Number(g.finalScore) : null,
       }));
       const result = await saveBulkGrades(Number(selectedClass), gradePayload);
-      setMessage({ type: "success", text: `Đã lưu ${result.savedCount} điểm bản nháp thành công.` });
+      const failedIds = new Set((result.errors || []).map((item) => String(item.enrollmentId)));
+      const savedEntries = changedEntries.filter(([eid]) => !failedIds.has(String(eid)));
+
+      setOriginalGrades((prev) => {
+        const next = { ...prev };
+        savedEntries.forEach(([eid]) => {
+          next[eid] = { ...grades[eid] };
+        });
+        return next;
+      });
+
+      if (result.failedCount > 0) {
+        setMessage({ type: "error", text: `Đã lưu ${result.savedCount} dòng, ${result.failedCount} dòng lỗi.` });
+      } else {
+        setMessage({ type: "success", text: `Đã lưu ${result.savedCount} thay đổi bản nháp thành công.` });
+      }
     } catch (err) {
-      setMessage({ type: "error", text: err.response?.data?.message || "Lưu điểm thất bại." });
+      setMessage({ type: "error", text: getApiErrorMessage(err, "Lưu điểm thất bại.") });
     } finally {
       setSaving(false);
     }
@@ -122,7 +211,7 @@ export default function GradeInputPage() {
         classSection: { ...prev.classSection, isGradeLocked: true },
       }));
     } catch (err) {
-      setMessage({ type: "error", text: err.response?.data?.message || "Khóa bảng điểm thất bại." });
+      setMessage({ type: "error", text: getApiErrorMessage(err, "Khóa bảng điểm thất bại.") });
     } finally {
       setLocking(false);
     }
@@ -309,7 +398,7 @@ export default function GradeInputPage() {
         {/* Title row with back button */}
         <div className="grade-input-title-row">
           {selectedClass && (
-            <button className="grade-input-btn-back" onClick={() => setSelectedClass("")}>
+            <button className="grade-input-btn-back" onClick={handleBackToClassSelection}>
               Quay lại
             </button>
           )}
@@ -327,7 +416,7 @@ export default function GradeInputPage() {
                   className="form-control"
                   style={{ minWidth: 220 }}
                   value={semesterId}
-                  onChange={(e) => { setSemesterId(e.target.value); setSelectedClass(""); }}
+                  onChange={(e) => handleSemesterSelect(e.target.value)}
                 >
                   <option value="">— Chọn học kỳ —</option>
                   {semesters.map((s) => (
@@ -342,7 +431,7 @@ export default function GradeInputPage() {
                     className="form-control"
                     style={{ minWidth: 260 }}
                     value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+                    onChange={(e) => handleClassSelect(e.target.value)}
                   >
                     <option value="">— Chọn lớp —</option>
                     {classes.map((c) => (
