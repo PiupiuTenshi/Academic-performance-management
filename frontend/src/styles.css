@@ -258,14 +258,15 @@ tr:hover td { background: #f8fafc; }
   font-weight: 700;
   color: var(--primary);
   margin-bottom: 6px;
+  text-align: center;
 }
 .login-logo img {
   height: 64px;
   margin-bottom: 12px;
   object-fit: contain;
 }
-.login-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
-.login-btn { width: 100%; padding: 11px; font-size: 15px; }
+.login-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; text-align: center; }
+.login-btn { width: 100%; padding: 11px; font-size: 15px; justify-content: center; }
 .login-error { background: #fee2e2; color: #991b1b; border-radius: var(--radius); padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
 
 /* ===== Filter row ===== */
