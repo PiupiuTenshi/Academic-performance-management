@@ -43,9 +43,9 @@ export default function AuditLogPage() {
     if (!val) return "—";
     try {
       const obj = typeof val === "string" ? JSON.parse(val) : val;
-      return JSON.stringify(obj, null, 0).substring(0, 80);
+      return JSON.stringify(obj, null, 2);
     } catch {
-      return String(val).substring(0, 80);
+      return String(val);
     }
   }
 
@@ -144,8 +144,18 @@ export default function AuditLogPage() {
                       </td>
                       <td style={{ fontSize: 12 }}>{log.entityType}</td>
                       <td style={{ fontSize: 12 }}>{log.entityId}</td>
-                      <td style={{ fontSize: 11, color: "var(--text-muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {formatValue(log.newValue)}
+                      <td style={{ minWidth: 360, maxWidth: 620, verticalAlign: "top" }}>
+                        <pre style={{
+                          margin: 0,
+                          fontSize: 11,
+                          color: "var(--text-muted)",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                          lineHeight: 1.5,
+                          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                        }}>
+                          {formatValue(log.newValue)}
+                        </pre>
                       </td>
                       <td style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                         {formatDate(log.createdAt)}
