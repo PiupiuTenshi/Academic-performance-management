@@ -24,6 +24,7 @@ export default function GradeInputPage() {
   const [selectedClass, setSelectedClass] = useState("");
   const [classData, setClassData] = useState(null); // { classSection, students }
   const [grades, setGrades] = useState({}); // { enrollmentId: { attendanceScore, ... } }
+  const [originalGrades, setOriginalGrades] = useState({});
   const [loadingClass, setLoadingClass] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locking, setLocking] = useState(false);
@@ -68,7 +69,7 @@ export default function GradeInputPage() {
 
   // Tải danh sách SV khi chọn lớp
   useEffect(() => {
-    if (!selectedClass) { setClassData(null); setGrades({}); setSearchTerm(""); return; }
+    if (!selectedClass) { setClassData(null); setGrades({}); setOriginalGrades({}); setSearchTerm(""); return; }
     setLoadingClass(true);
     getClassStudents(selectedClass)
       .then((data) => {
@@ -84,6 +85,7 @@ export default function GradeInputPage() {
           };
         });
         setGrades(initial);
+        setOriginalGrades(initial);
       })
       .catch((err) => setMessage({ type: "error", text: err.response?.data?.error?.message || "Không thể tải danh sách sinh viên." }))
       .finally(() => setLoadingClass(false));
@@ -116,6 +118,29 @@ export default function GradeInputPage() {
     setSelectedClass("");
   }
 
+  function normalizeScoreForCompare(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    return Number(value);
+  }
+
+  function isSameGrade(current = {}, original = {}) {
+    const fields = ["attendanceScore", "assignmentScore", "midtermScore", "finalScore"];
+    return fields.every((field) => {
+      const currentValue = normalizeScoreForCompare(current[field]);
+      const originalValue = normalizeScoreForCompare(original[field]);
+      if (currentValue === null || originalValue === null) {
+        return currentValue === originalValue;
+      }
+      return Math.abs(currentValue - originalValue) < 1e-9;
+    });
+  }
+
+  function getChangedGradeEntries() {
+    return Object.entries(grades).filter(([enrollmentId, grade]) => (
+      !isSameGrade(grade, originalGrades[enrollmentId])
+    ));
+  }
+
   // Validate tất cả điểm trước khi lưu
   function validateAll() {
     const fields = ["attendanceScore", "assignmentScore", "midtermScore", "finalScore"];
@@ -135,7 +160,14 @@ export default function GradeInputPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const gradePayload = Object.entries(grades).map(([eid, g]) => ({
+      const changedEntries = getChangedGradeEntries();
+
+      if (changedEntries.length === 0) {
+        setMessage({ type: "success", text: "Không có thay đổi cần lưu." });
+        return;
+      }
+
+      const gradePayload = changedEntries.map(([eid, g]) => ({
         enrollmentId: Number(eid),
         attendanceScore: g.attendanceScore !== "" ? Number(g.attendanceScore) : null,
         assignmentScore: g.assignmentScore !== "" ? Number(g.assignmentScore) : null,
@@ -143,9 +175,24 @@ export default function GradeInputPage() {
         finalScore: g.finalScore !== "" ? Number(g.finalScore) : null,
       }));
       const result = await saveBulkGrades(Number(selectedClass), gradePayload);
-      setMessage({ type: "success", text: `Đã lưu ${result.savedCount} điểm bản nháp thành công.` });
+      const failedIds = new Set((result.errors || []).map((item) => String(item.enrollmentId)));
+      const savedEntries = changedEntries.filter(([eid]) => !failedIds.has(String(eid)));
+
+      setOriginalGrades((prev) => {
+        const next = { ...prev };
+        savedEntries.forEach(([eid]) => {
+          next[eid] = { ...grades[eid] };
+        });
+        return next;
+      });
+
+      if (result.failedCount > 0) {
+        setMessage({ type: "error", text: `Đã lưu ${result.savedCount} dòng, ${result.failedCount} dòng lỗi.` });
+      } else {
+        setMessage({ type: "success", text: `Đã lưu ${result.savedCount} thay đổi bản nháp thành công.` });
+      }
     } catch (err) {
-      setMessage({ type: "error", text: err.response?.data?.message || "Lưu điểm thất bại." });
+      setMessage({ type: "error", text: getApiErrorMessage(err, "Lưu điểm thất bại.") });
     } finally {
       setSaving(false);
     }
