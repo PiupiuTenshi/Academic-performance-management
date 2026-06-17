@@ -126,6 +126,57 @@ export async function listSemesters(_req, res) {
   sendSuccess(res, rows);
 }
 
+export async function listAcademicRecords(req, res) {
+  const semesterId = req.query.semesterId ? Number(req.query.semesterId) : null;
+  const classSectionId = req.query.classSectionId ? Number(req.query.classSectionId) : null;
+  const keyword = req.query.keyword ? `%${req.query.keyword}%` : null;
+
+  if (req.query.semesterId && !semesterId) {
+    throw new ApiError(400, "VALIDATION_ERROR", "Invalid semesterId");
+  }
+
+  if (req.query.classSectionId && !classSectionId) {
+    throw new ApiError(400, "VALIDATION_ERROR", "Invalid classSectionId");
+  }
+
+  const rows = await query(
+    `SELECT
+       ar.id,
+       ar.student_id AS studentId,
+       st.student_code AS studentCode,
+       st.full_name AS fullName,
+       st.email,
+       ar.semester_id AS semesterId,
+       se.name AS semesterName,
+       se.academic_year AS academicYear,
+       ar.average_score AS averageScore,
+       ar.total_credits AS totalCredits,
+       ar.classification,
+       ar.updated_at AS updatedAt
+     FROM academic_records ar
+     JOIN students st ON st.id = ar.student_id
+     JOIN semesters se ON se.id = ar.semester_id
+     WHERE (? IS NULL OR ar.semester_id = ?)
+       AND (
+         ? IS NULL OR
+         st.student_code LIKE ? OR
+         st.full_name LIKE ?
+       )
+       AND (
+         ? IS NULL OR EXISTS (
+           SELECT 1
+           FROM enrollments e
+           WHERE e.student_id = ar.student_id
+             AND e.class_section_id = ?
+         )
+       )
+     ORDER BY se.id DESC, st.student_code`,
+    [semesterId, semesterId, keyword, keyword, keyword, classSectionId, classSectionId],
+  );
+
+  sendSuccess(res, rows);
+}
+
 export async function classifySemester(req, res) {
   const semesterId = Number(req.body.semesterId);
 

@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import app from "../src/app.js";
 import { env } from "../src/config/env.js";
-import { pool } from "../src/config/database.js";
+import { pool, query } from "../src/config/database.js";
 
 const results = [];
 
@@ -208,7 +208,12 @@ const server = app.listen(0, async () => {
     });
 
     await test("Student can view own transcript", async () => {
-      const response = await request(baseUrl, `/students/${context.studentId}/transcript`, {
+      const studentRows = await query("SELECT id FROM students WHERE user_id = ? LIMIT 1", [
+        context.student.user.id,
+      ]);
+      assert(studentRows[0]?.id, "student profile for student01 is missing");
+
+      const response = await request(baseUrl, `/students/${studentRows[0].id}/transcript`, {
         token: context.student.accessToken,
       });
       assert(response.status === 200, `expected 200, got ${response.status}`);
@@ -250,4 +255,3 @@ const server = app.listen(0, async () => {
     }
   }
 });
-

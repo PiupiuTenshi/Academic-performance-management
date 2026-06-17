@@ -13,6 +13,10 @@ function validateScore(value, field) {
   if (!Number.isFinite(score) || score < 0 || score > 10) {
     throw new ApiError(422, "VALIDATION_ERROR", `${field} must be a number from 0 to 10`);
   }
+
+  if (Math.abs(score * 10 - Math.round(score * 10)) > 1e-9) {
+    throw new ApiError(422, "VALIDATION_ERROR", `${field} must have at most 1 decimal place`);
+  }
 }
 
 function normalizeGradePayload(payload) {
@@ -29,6 +33,41 @@ function normalizeGradePayload(payload) {
   validateScore(grade.finalScore, "finalScore");
 
   return grade;
+}
+
+function toNullableNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  return Number(value);
+}
+
+function scoreChanged(oldValue, nextValue) {
+  const oldScore = toNullableNumber(oldValue);
+  const nextScore = toNullableNumber(nextValue);
+
+  if (oldScore === null || nextScore === null) {
+    return oldScore !== nextScore;
+  }
+
+  return Math.abs(oldScore - nextScore) > 1e-9;
+}
+
+function gradeChanged(oldGrade, nextGrade) {
+  if (!oldGrade) {
+    return Object.values(nextGrade).some((value) => value !== null);
+  }
+
+  return (
+    scoreChanged(oldGrade.attendance_score, nextGrade.attendanceScore) ||
+    scoreChanged(oldGrade.assignment_score, nextGrade.assignmentScore) ||
+    scoreChanged(oldGrade.midterm_score, nextGrade.midtermScore) ||
+    scoreChanged(oldGrade.final_score, nextGrade.finalScore)
+  );
+}
+
+function buildPlaceholders(rowCount, columnCount) {
+  return Array.from({ length: rowCount }, () => `(${Array(columnCount).fill("?").join(", ")})`).join(", ");
 }
 
 async function ensureClassCanReceiveGrades(user, classSectionId) {
@@ -73,9 +112,12 @@ export async function saveBulkGrades(req, res) {
   const connection = await pool.getConnection();
   const errors = [];
   let savedCount = 0;
+  let skippedCount = 0;
 
   try {
     await connection.beginTransaction();
+
+    const normalizedByEnrollment = new Map();
 
     for (const item of grades) {
       try {
@@ -86,59 +128,92 @@ export async function saveBulkGrades(req, res) {
           throw new ApiError(422, "VALIDATION_ERROR", "enrollmentId is required");
         }
 
-        const [enrollmentRows] = await connection.execute(
-          "SELECT id FROM enrollments WHERE id = ? AND class_section_id = ? LIMIT 1",
-          [enrollmentId, classSectionId],
-        );
-
-        if (!enrollmentRows[0]) {
-          throw new ApiError(404, "NOT_FOUND", "Enrollment not found in class");
-        }
-
-        const [oldRows] = await connection.execute("SELECT * FROM grades WHERE enrollment_id = ? LIMIT 1", [
-          enrollmentId,
-        ]);
-
-        await connection.execute(
-          `INSERT INTO grades (
-             enrollment_id, attendance_score, assignment_score, midterm_score, final_score
-           )
-           VALUES (?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             attendance_score = VALUES(attendance_score),
-             assignment_score = VALUES(assignment_score),
-             midterm_score = VALUES(midterm_score),
-             final_score = VALUES(final_score),
-             updated_at = CURRENT_TIMESTAMP`,
-          [
-            enrollmentId,
-            grade.attendanceScore,
-            grade.assignmentScore,
-            grade.midtermScore,
-            grade.finalScore,
-          ],
-        );
-
-        await connection.execute(
-          `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, old_value, new_value)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            req.user.id,
-            "UPSERT_GRADE",
-            "grades",
-            enrollmentId,
-            oldRows[0] ? JSON.stringify(oldRows[0]) : null,
-            JSON.stringify(grade),
-          ],
-        );
-
-        savedCount += 1;
+        normalizedByEnrollment.set(enrollmentId, { enrollmentId, grade });
       } catch (error) {
         errors.push({
           enrollmentId: item.enrollmentId,
           code: error.code || "ROW_ERROR",
           message: error.message,
         });
+      }
+    }
+
+    const normalizedRows = [...normalizedByEnrollment.values()];
+
+    if (normalizedRows.length > 0) {
+      const enrollmentIds = normalizedRows.map((item) => item.enrollmentId);
+      const enrollmentPlaceholders = enrollmentIds.map(() => "?").join(", ");
+      const [enrollmentRows] = await connection.query(
+        `SELECT id FROM enrollments WHERE class_section_id = ? AND id IN (${enrollmentPlaceholders})`,
+        [classSectionId, ...enrollmentIds],
+      );
+      const validEnrollmentIds = new Set(enrollmentRows.map((row) => Number(row.id)));
+      const validRows = [];
+
+      for (const row of normalizedRows) {
+        if (validEnrollmentIds.has(row.enrollmentId)) {
+          validRows.push(row);
+        } else {
+          errors.push({
+            enrollmentId: row.enrollmentId,
+            code: "NOT_FOUND",
+            message: "Enrollment not found in class",
+          });
+        }
+      }
+
+      if (validRows.length > 0) {
+        const validEnrollmentIdList = validRows.map((row) => row.enrollmentId);
+        const validPlaceholders = validEnrollmentIdList.map(() => "?").join(", ");
+        const [oldRows] = await connection.query(
+          `SELECT * FROM grades WHERE enrollment_id IN (${validPlaceholders})`,
+          validEnrollmentIdList,
+        );
+        const oldByEnrollment = new Map(oldRows.map((row) => [Number(row.enrollment_id), row]));
+        const changedRows = validRows.filter((row) => gradeChanged(oldByEnrollment.get(row.enrollmentId), row.grade));
+
+        skippedCount = validRows.length - changedRows.length;
+
+        if (changedRows.length > 0) {
+          const gradeParams = changedRows.flatMap((row) => [
+            row.enrollmentId,
+            row.grade.attendanceScore,
+            row.grade.assignmentScore,
+            row.grade.midtermScore,
+            row.grade.finalScore,
+          ]);
+
+          await connection.query(
+            `INSERT INTO grades (
+               enrollment_id, attendance_score, assignment_score, midterm_score, final_score
+             )
+             VALUES ${buildPlaceholders(changedRows.length, 5)}
+             ON DUPLICATE KEY UPDATE
+               attendance_score = VALUES(attendance_score),
+               assignment_score = VALUES(assignment_score),
+               midterm_score = VALUES(midterm_score),
+               final_score = VALUES(final_score),
+               updated_at = CURRENT_TIMESTAMP`,
+            gradeParams,
+          );
+
+          const auditParams = changedRows.flatMap((row) => [
+            req.user.id,
+            "UPSERT_GRADE",
+            "grades",
+            row.enrollmentId,
+            oldByEnrollment.has(row.enrollmentId) ? JSON.stringify(oldByEnrollment.get(row.enrollmentId)) : null,
+            JSON.stringify(row.grade),
+          ]);
+
+          await connection.query(
+            `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, old_value, new_value)
+             VALUES ${buildPlaceholders(changedRows.length, 6)}`,
+            auditParams,
+          );
+
+          savedCount = changedRows.length;
+        }
       }
     }
 
@@ -152,6 +227,7 @@ export async function saveBulkGrades(req, res) {
 
   sendSuccess(res, {
     savedCount,
+    skippedCount,
     failedCount: errors.length,
     errors,
   });

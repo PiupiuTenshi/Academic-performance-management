@@ -143,8 +143,15 @@ export async function lockGrades(req, res) {
     [classSectionId],
   );
 
-  if (Number(missingRows[0].missingCount) > 0) {
-    throw new ApiError(409, "CONFLICT", "Cannot lock grades while required scores are missing");
+  const missingCount = Number(missingRows[0].missingCount);
+
+  if (missingCount > 0) {
+    throw new ApiError(
+      409,
+      "CONFLICT",
+      `Không thể khóa bảng điểm vì còn ${missingCount} sinh viên chưa nhập đủ điểm.`,
+      [{ missingCount }],
+    );
   }
 
   await query("UPDATE class_sections SET is_grade_locked = TRUE WHERE id = ?", [classSectionId]);
