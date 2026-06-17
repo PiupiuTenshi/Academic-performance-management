@@ -256,14 +256,15 @@ export default function GradeInputPage() {
     return "F";
   }
 
-  // Excel (CSV) Export
-  function handleExportExcel() {
-    if (!classData || !classData.students) return;
-    const activeClassObj = classes.find((c) => Number(c.id) === Number(selectedClass));
-    const fileName = activeClassObj ? `${activeClassObj.sectionCode}_${activeClassObj.courseName}` : "bang_diem";
+  function normalizeExcelCell(value) {
+    if (value === null || value === undefined) return "";
+    return String(value).trim();
+  }
 
-    let csvContent = "\uFEFF"; // UTF-8 BOM
-    csvContent += "STT,Mã SV,Họ tên,Điểm CC (10%),Bài tập (20%),Giữa kỳ (20%),Cuối kỳ (50%),Điểm TK (10),Điểm TK (4),Điểm TK (C)\n";
+  function buildExcelRows() {
+    const rows = [
+      ["STT", "Mã SV", "Họ tên", "Điểm CC (10%)", "Bài tập (20%)", "Giữa kỳ (20%)", "Cuối kỳ (50%)", "Điểm TK (10)", "Điểm TK (4)", "Điểm TK (C)"],
+    ];
 
     classData.students.forEach((s, idx) => {
       const g = grades[s.enrollmentId] || {};
@@ -272,102 +273,101 @@ export default function GradeInputPage() {
       const gk = g.midtermScore ?? "";
       const ck = g.finalScore ?? "";
 
-      let tk10 = "—";
-      let tk4 = "—";
-      let tkC = "—";
+      let tk10 = "";
+      let tk4 = "";
+      let tkC = "";
 
       if (cc !== "" && bt !== "" && gk !== "" && ck !== "") {
         const score = Number(cc) * 0.1 + Number(bt) * 0.2 + Number(gk) * 0.2 + Number(ck) * 0.5;
         const rounded = Math.round(score * 10) / 10;
-        tk10 = rounded.toString();
+        tk10 = rounded;
         tk4 = getScale4(rounded);
         tkC = getLetterGrade(rounded);
       } else if (s.totalScore !== null && s.totalScore !== undefined) {
-        tk10 = s.totalScore.toString();
+        tk10 = Number(s.totalScore);
         tk4 = getScale4(s.totalScore);
         tkC = getLetterGrade(s.totalScore);
       }
 
-      csvContent += `${idx + 1},${s.studentCode},"${s.fullName}",${cc},${bt},${gk},${ck},${tk10},${tk4},${tkC}\n`;
+      rows.push([idx + 1, s.studentCode, s.fullName, cc, bt, gk, ck, tk10, tk4, tkC]);
     });
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${fileName}_BangDiem.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    return rows;
   }
 
-  // Excel (CSV) Import
-  function handleImportExcel(e) {
+  async function loadXlsx() {
+    return import("xlsx");
+  }
+
+  // Excel (.xlsx) Export
+  async function handleExportExcel() {
+    if (!classData || !classData.students) return;
+    const XLSX = await loadXlsx();
+    const activeClassObj = classes.find((c) => Number(c.id) === Number(selectedClass));
+    const fileName = activeClassObj ? `${activeClassObj.sectionCode}_${activeClassObj.courseName}` : "bang_diem";
+
+    const worksheet = XLSX.utils.aoa_to_sheet(buildExcelRows());
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 28 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Bang diem");
+    XLSX.writeFile(workbook, `${fileName}_BangDiem.xlsx`);
+  }
+
+  // Excel (.xlsx) Import
+  async function handleImportExcel(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target.result;
-        const lines = text.split("\n");
-        const newGrades = { ...grades };
-        let count = 0;
+    try {
+      const XLSX = await loadXlsx();
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+      const newGrades = { ...grades };
+      let count = 0;
 
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
+      for (let i = 1; i < rows.length; i++) {
+        const parts = rows[i];
+        if (!parts || parts.length < 7) continue;
 
-          // Simple CSV line parser
-          const parts = parseCSVLine(line);
-          if (parts.length < 7) continue;
+        const studentCode = normalizeExcelCell(parts[1]);
+        const cc = normalizeExcelCell(parts[3]);
+        const bt = normalizeExcelCell(parts[4]);
+        const gk = normalizeExcelCell(parts[5]);
+        const ck = normalizeExcelCell(parts[6]);
 
-          const studentCode = parts[1]?.trim();
-          const cc = parts[3]?.trim();
-          const bt = parts[4]?.trim();
-          const gk = parts[5]?.trim();
-          const ck = parts[6]?.trim();
-
-          const student = classData.students.find((s) => s.studentCode === studentCode);
-          if (student) {
-            newGrades[student.enrollmentId] = {
-              attendanceScore: cc !== undefined ? cc : "",
-              assignmentScore: bt !== undefined ? bt : "",
-              midtermScore: gk !== undefined ? gk : "",
-              finalScore: ck !== undefined ? ck : "",
-            };
-            count++;
-          }
+        const student = classData.students.find((s) => s.studentCode === studentCode);
+        if (student) {
+          newGrades[student.enrollmentId] = {
+            attendanceScore: cc,
+            assignmentScore: bt,
+            midtermScore: gk,
+            finalScore: ck,
+          };
+          count++;
         }
-
-        setGrades(newGrades);
-        setMessage({ type: "success", text: `Đã nạp thành công điểm của ${count} sinh viên từ file Excel.` });
-      } catch (err) {
-        setMessage({ type: "error", text: "Lỗi đọc file. Vui lòng kiểm tra định dạng tệp tin CSV." });
       }
-    };
-    reader.readAsText(file, "UTF-8");
-    e.target.value = ""; // Reset
-  }
 
-  function parseCSVLine(text) {
-    const result = [];
-    let insideQuote = false;
-    let entry = "";
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      if (char === '"') {
-        insideQuote = !insideQuote;
-      } else if (char === ',' && !insideQuote) {
-        result.push(entry);
-        entry = "";
-      } else {
-        entry += char;
-      }
+      setGrades(newGrades);
+      setMessage({ type: "success", text: `Đã nạp thành công điểm của ${count} sinh viên từ file Excel.` });
+    } catch (err) {
+      setMessage({ type: "error", text: "Lỗi đọc file. Vui lòng kiểm tra định dạng tệp tin .xlsx." });
+    } finally {
+      e.target.value = ""; // Reset
     }
-    result.push(entry);
-    return result;
   }
 
   const activeClassObj = classes.find((c) => Number(c.id) === Number(selectedClass));
@@ -490,7 +490,7 @@ export default function GradeInputPage() {
                     ref={fileInputRef}
                     style={{ display: "none" }}
                     onChange={handleImportExcel}
-                    accept=".csv"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   />
                 </>
               ) : <div />}
