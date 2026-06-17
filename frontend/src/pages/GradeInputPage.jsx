@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
   getSemesters, getClasses, getClassStudents,
@@ -13,6 +14,9 @@ import "./GradeInputPage.css";
 
 export default function GradeInputPage() {
   const { user, logout } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const presetSemesterId = searchParams.get("semesterId") || "";
+  const presetClassId = searchParams.get("classId") || "";
   
   const [semesters, setSemesters] = useState([]);
   const [semesterId, setSemesterId] = useState("");
@@ -29,6 +33,19 @@ export default function GradeInputPage() {
   
   const fileInputRef = useRef(null);
 
+  function getApiErrorMessage(error, fallback) {
+    return error.response?.data?.error?.message
+      || error.response?.data?.message
+      || error.message
+      || fallback;
+  }
+
+  useEffect(() => {
+    if (presetSemesterId) {
+      setSemesterId(presetSemesterId);
+    }
+  }, [presetSemesterId]);
+
   // Tải học kỳ
   useEffect(() => {
     getSemesters()
@@ -40,9 +57,14 @@ export default function GradeInputPage() {
   useEffect(() => {
     if (!semesterId) { setClasses([]); setSelectedClass(""); setClassData(null); return; }
     getClasses(semesterId)
-      .then(setClasses)
+      .then((data) => {
+        setClasses(data);
+        if (presetClassId && data.some((c) => String(c.id) === String(presetClassId))) {
+          setSelectedClass(presetClassId);
+        }
+      })
       .catch(() => setMessage({ type: "error", text: "Không thể tải danh sách lớp học phần." }));
-  }, [semesterId]);
+  }, [semesterId, presetClassId]);
 
   // Tải danh sách SV khi chọn lớp
   useEffect(() => {
@@ -72,6 +94,26 @@ export default function GradeInputPage() {
       ...prev,
       [enrollmentId]: { ...prev[enrollmentId], [field]: value },
     }));
+  }
+
+  function handleSemesterSelect(value) {
+    setSearchParams({});
+    setSemesterId(value);
+    setSelectedClass("");
+  }
+
+  function handleClassSelect(value) {
+    setSearchParams({});
+    setSelectedClass(value);
+  }
+
+  function handleBackToClassSelection() {
+    if (semesterId) {
+      setSearchParams({ semesterId });
+    } else {
+      setSearchParams({});
+    }
+    setSelectedClass("");
   }
 
   // Validate tất cả điểm trước khi lưu
@@ -122,7 +164,7 @@ export default function GradeInputPage() {
         classSection: { ...prev.classSection, isGradeLocked: true },
       }));
     } catch (err) {
-      setMessage({ type: "error", text: err.response?.data?.message || "Khóa bảng điểm thất bại." });
+      setMessage({ type: "error", text: getApiErrorMessage(err, "Khóa bảng điểm thất bại.") });
     } finally {
       setLocking(false);
     }
@@ -309,7 +351,7 @@ export default function GradeInputPage() {
         {/* Title row with back button */}
         <div className="grade-input-title-row">
           {selectedClass && (
-            <button className="grade-input-btn-back" onClick={() => setSelectedClass("")}>
+            <button className="grade-input-btn-back" onClick={handleBackToClassSelection}>
               Quay lại
             </button>
           )}
@@ -327,7 +369,7 @@ export default function GradeInputPage() {
                   className="form-control"
                   style={{ minWidth: 220 }}
                   value={semesterId}
-                  onChange={(e) => { setSemesterId(e.target.value); setSelectedClass(""); }}
+                  onChange={(e) => handleSemesterSelect(e.target.value)}
                 >
                   <option value="">— Chọn học kỳ —</option>
                   {semesters.map((s) => (
@@ -342,7 +384,7 @@ export default function GradeInputPage() {
                     className="form-control"
                     style={{ minWidth: 260 }}
                     value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+                    onChange={(e) => handleClassSelect(e.target.value)}
                   >
                     <option value="">— Chọn lớp —</option>
                     {classes.map((c) => (

@@ -114,7 +114,7 @@ export default function DashboardPage() {
                         <td>
                           <button
                             className="btn btn-primary btn-sm"
-                            onClick={() => navigate("/grades/input")}
+                            onClick={() => navigate(`/grades/input?semesterId=${c.semesterId}&classId=${c.id}`)}
                           >
                             Nhập điểm
                           </button>

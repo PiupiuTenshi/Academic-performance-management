@@ -13,6 +13,10 @@ function validateScore(value, field) {
   if (!Number.isFinite(score) || score < 0 || score > 10) {
     throw new ApiError(422, "VALIDATION_ERROR", `${field} must be a number from 0 to 10`);
   }
+
+  if (Math.abs(score * 10 - Math.round(score * 10)) > 1e-9) {
+    throw new ApiError(422, "VALIDATION_ERROR", `${field} must have at most 1 decimal place`);
+  }
 }
 
 function normalizeGradePayload(payload) {

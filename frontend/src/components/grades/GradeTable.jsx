@@ -1,5 +1,5 @@
 import React from "react";
-import { formatScore } from "../../utils/formatScore";
+import { formatScore, isValidScore } from "../../utils/formatScore";
 
 export default function GradeTable({ students, grades, onChange, readOnly }) {
   const FIELDS = [
@@ -62,6 +62,10 @@ export default function GradeTable({ students, grades, onChange, readOnly }) {
       }
       if (n < 0 || n > 10) {
         errors.push(`${label} phải từ 0-10`);
+        return;
+      }
+      if (!isValidScore(val)) {
+        errors.push(`${label} tối đa 1 chữ số thập phân`);
       }
     };
     check(cc, "Chuyên cần");
@@ -125,7 +129,7 @@ export default function GradeTable({ students, grades, onChange, readOnly }) {
                 <td className="align-left" style={{ fontWeight: 500 }}>{s.fullName}</td>
                 {FIELDS.map((f) => {
                   const val = g[f.key] ?? "";
-                  const invalid = val !== "" && (isNaN(Number(val)) || Number(val) < 0 || Number(val) > 10 || (String(Number(val)).indexOf(".") !== -1 && String(Number(val)).length - String(Number(val)).indexOf(".") - 1 > 1));
+                  const invalid = !isValidScore(val);
                   return (
                     <td key={f.key}>
                       <input
