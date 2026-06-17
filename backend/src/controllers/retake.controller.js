@@ -13,12 +13,14 @@ export async function listRetakes(req, res) {
        s.full_name AS fullName,
        c.course_code AS courseCode,
        c.name AS courseName,
+       g.total_score AS totalScore,
        rr.status,
        rr.note,
        rr.created_at AS createdAt
      FROM retake_results rr
      JOIN students s ON s.id = rr.student_id
      JOIN courses c ON c.id = rr.course_id
+     LEFT JOIN grades g ON g.id = rr.grade_id
      WHERE (? IS NULL OR rr.semester_id = ?)
        AND (? IS NULL OR rr.course_id = ?)
        AND (? IS NULL OR rr.status = ?)

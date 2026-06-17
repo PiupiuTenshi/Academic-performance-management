@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { calculateFinalScores, classifySemester, listSemesters } from "../controllers/academic.controller.js";
+import {
+  calculateFinalScores,
+  classifySemester,
+  listAcademicRecords,
+  listSemesters,
+} from "../controllers/academic.controller.js";
 import { authenticate, authorize } from "../middleware/auth.middleware.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -24,6 +29,34 @@ router.get(
   authorize("student", "lecturer", "academic_staff", "admin"),
   asyncHandler(listSemesters),
 );
+
+/**
+ * @openapi
+ * /academic/records:
+ *   get:
+ *     tags:
+ *       - Academic
+ *     summary: List persisted academic records
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: semesterId
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: classSectionId
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Academic records
+ */
+router.get("/records", authenticate, authorize("academic_staff", "admin"), asyncHandler(listAcademicRecords));
 
 /**
  * @openapi
